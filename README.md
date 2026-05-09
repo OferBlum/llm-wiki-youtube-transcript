@@ -9,6 +9,7 @@ The system allows you to automatically ingest raw knowledge, specifically YouTub
 - `SKILL-ingest.md`: The agent skill responsible for ingesting new sources into the raw processing pipeline.
 - `SKILL-resolve.md`: The agent skill responsible for resolving processed/raw information into permanent, interconnected wiki notes.
 - `youtube-fetch.py`: A Python script that fetches and transcribes YouTube videos automatically, preparing them for the ingestion pipeline.
+- `youtube_queue/md`: The pending/compiled youtube videos
 
 ## Usage
 1. Setup the Python environment to run `youtube-fetch.py`.
