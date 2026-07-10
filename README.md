@@ -67,7 +67,7 @@ Transcripts are saved as `raw/youtube-<video_id>-<YYYY-MM-DD>.md`. Hebrew and En
 
 This pipeline is one organ of a full agentic vault — lazy-loading skills, a privacy-guard hook, a graphify knowledge graph, and bidirectional note↔wiki linking:
 
-**[private-obsidian-agent](https://github.com/OferBlum/private-obsidian-agent)** — the complete digital-brain setup this repo plugs into.
+**[personal-digital-brain-with-ai](https://github.com/OferBlum/personal-digital-brain-with-ai)** — the complete digital-brain setup this repo plugs into.
 
 ## License
 
