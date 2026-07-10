@@ -1,4 +1,9 @@
-# Compilation Log
+---
+subject: "[[Wiki Log]]"
+tags:
+  - wiki
+  - log
+private: false
+---
 
-All LLM ingest and compilation events are logged here.
-
+# Wiki Log

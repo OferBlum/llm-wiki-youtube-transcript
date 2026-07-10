@@ -1,36 +1,33 @@
 #!/usr/bin/env python3
 """
-YouTube Fetch — Downloads transcripts from youtube_queue.md
-Downloads transcripts from YouTube to the raw/ directory
+YouTube Fetch — Downloads transcripts from youtube_queue.md into raw/
 """
 
 import os
 import sys
 import re
-import glob
 from datetime import datetime
 
 try:
     from youtube_transcript_api import YouTubeTranscriptApi
 except ImportError:
-    print("❌ Missing: pip install youtube-transcript-api")
+    print("❌ Missing dependency: pip install youtube-transcript-api")
     sys.exit(1)
 
 # ── Config ──────────────────────────────────────────────
-VAULT_PATH = os.path.expanduser(
-    "~/Library/Mobile Documents/iCloud~md~obsidian/Documents"
+# Vault root: VAULT_ROOT env var, or the parent of this script's folder
+# (the script lives in <vault>/0 - System/).
+VAULT_PATH = os.environ.get("VAULT_ROOT") or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
 )
-# Make sure to update QUEUE_PATH to your Vault's exact path
-QUEUE_PATH = "Wikipedia/raw/youtube_queue.md"
-RAW_FOLDER = "Wikipedia/raw"
+QUEUE_PATH = "7 - Wikipedia/raw/youtube_queue.md"
+RAW_FOLDER = "7 - Wikipedia/raw"
+
+# Queue section markers
+PENDING_MARKER = "Pending"
+COMPILED_MARKER = "Compiled"
 
 # ── Helpers ─────────────────────────────────────────────
-def find_vault() -> str:
-    for v in glob.glob(os.path.join(VAULT_PATH, "*")):
-        if os.path.isdir(v) and os.path.exists(os.path.join(v, QUEUE_PATH)):
-            return v
-    return None
-
 def extract_video_id(url: str) -> str:
     patterns = [
         r"youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})",
@@ -46,10 +43,10 @@ def extract_video_id(url: str) -> str:
 def get_transcript(video_id: str) -> str:
     try:
         api = YouTubeTranscriptApi()
-        fetched = api.fetch(video_id, languages=["en", "iw", "he"])
+        fetched = api.fetch(video_id, languages=["en", "he", "iw"])
         return " ".join([t.text for t in fetched])
     except Exception as e:
-        print(f"  ⚠️ Transcript not found: {e}")
+        print(f"  ⚠️ No transcript found: {e}")
         return None
 
 def parse_queue(queue_path: str):
@@ -58,14 +55,13 @@ def parse_queue(queue_path: str):
     pending = []
     in_pending = False
     for line in content.split("\n"):
-        # Supports both English and Hebrew section headers
-        if "Pending" in line or "ממתינים" in line:
+        if PENDING_MARKER in line:
             in_pending = True
             continue
-        if "Compiled" in line or "קומפלו" in line:
+        if COMPILED_MARKER in line:
             in_pending = False
             continue
-        if in_pending and "|" in line and "http" in line:
+        if in_pending and "http" in line:
             urls = re.findall(r'https?://[^\s\)\]|]+', line)
             tags = re.findall(r'#\w+', line)
             if urls:
@@ -77,27 +73,38 @@ def parse_queue(queue_path: str):
     return pending, content
 
 def mark_as_compiled(content: str, original_line: str, page_name: str) -> str:
-    new_line = original_line.rstrip() + f" | [[{page_name}]]"
+    # Extract a clean URL from the pending line (no table pipes / extra spaces)
+    url_match = re.search(r'https?://[^\s\)\]|]+', original_line)
+    url = url_match.group(0) if url_match else original_line.strip()
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    new_row = f"| {url} | [[{page_name}]] | {date_str} |"
+
+    # Remove the line from the "Pending" section
     content = content.replace(original_line, "")
-    compiled_marker = "## Compiled"
-    if compiled_marker not in content and "## קומפלו" in content:
-        compiled_marker = "## קומפלו"
-        
-    if compiled_marker in content:
-        insert_pos = content.find(compiled_marker) + len(compiled_marker)
-        next_line = content.find("\n", insert_pos) + 1
-        content = content[:next_line] + new_line + "\n" + content[next_line:]
-    return content
+
+    # Inject a valid table row right after the separator row (| --- | --- | --- |)
+    # under the "## Compiled" heading — so the row lands at the top of the table,
+    # not before the heading.
+    lines = content.split("\n")
+    out = []
+    in_compiled = False
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if line.strip().startswith(f"## {COMPILED_MARKER}"):
+            in_compiled = True
+        elif in_compiled and not inserted and re.match(r'\s*\|\s*-{3,}', line):
+            out.append(new_row)
+            inserted = True
+    if not inserted:
+        # fallback: if no table was found under "Compiled", append at the end
+        out.append(new_row)
+    return "\n".join(out)
 
 # ── Main ────────────────────────────────────────────────
 def main():
-    vault_dir = find_vault()
-    if not vault_dir:
-        print("❌ Vault not found")
-        sys.exit(1)
-
-    queue_full_path = os.path.join(vault_dir, QUEUE_PATH)
-    raw_full_path = os.path.join(vault_dir, RAW_FOLDER)
+    queue_full_path = os.path.join(VAULT_PATH, QUEUE_PATH)
+    raw_full_path = os.path.join(VAULT_PATH, RAW_FOLDER)
 
     if not os.path.exists(queue_full_path):
         print(f"❌ Not found: {queue_full_path}")
@@ -117,7 +124,7 @@ def main():
         video_id = extract_video_id(url)
 
         if not video_id:
-            print(f"  ❌ Could not extract video ID from: {url}")
+            print(f"  ❌ Could not extract a video ID from: {url}")
             continue
 
         print(f"  ⬇️ Downloading transcript: {video_id}...")
@@ -132,9 +139,9 @@ def main():
 
         tags_str = "\n  - ".join(tags) if tags else ""
         file_content = f"""---
-topic:
+subject:
 tags:
-  - wiki
+  - learning
   - {tags_str}
 private: false
 type: youtube
@@ -152,12 +159,15 @@ fetched: {date_str}
 
         print(f"  ✅ Saved: {filename}")
 
-        queue_content = mark_as_compiled(queue_content, video["line"], f"youtube-{video_id}-{date_str}")
+        # The final page name is only decided at compile time (in Claude Code),
+        # so a placeholder is injected that clearly must be replaced with a link
+        # to the wiki page that gets created.
+        queue_content = mark_as_compiled(queue_content, video["line"], "⚠️ update page name")
 
     with open(queue_full_path, "w", encoding="utf-8") as f:
         f.write(queue_content)
 
-    print("\n✅ Done — Claude Code can now compile the new files in raw/")
+    print("\n✅ Done — now Claude Code will compile the new files in raw/")
 
 if __name__ == "__main__":
     main()

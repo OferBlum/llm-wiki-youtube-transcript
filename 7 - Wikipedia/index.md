@@ -1,5 +1,11 @@
-# Wikipedia Index
+---
+subject: "[[Wiki Index]]"
+tags:
+  - wiki
+  - index
+private: false
+---
+# Wiki Index
 
-| Topic | Pages |
-|-------|-------|
-|       |       |
+| Page | Description | Last updated |
+|------|-------------|--------------|
