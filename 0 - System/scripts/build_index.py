@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+build_index.py — generates index.md from the pages' frontmatter.
+Columns: Page (a uniform full-path link) | Description (background) | Last updated (last_compiled).
+A page with no background keeps the description it already had in the index.
+"""
+import sys, re
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import wikilib as V
+
+
+def require_public_target(path):
+    """Reject unavailable targets before body reads, backups or replacement."""
+    if V.is_forbidden(path):
+        raise SystemExit("Unavailable bookkeeping target; operation refused.")
+
+INDEX = V.WIKI / "index.md"
+
+HEADER = [
+    '---', 'type: index', 'subject:', 'tags:', '  - wiki', '  - index',
+    'okf_version: "0.2"', '---', '# Wiki Index', '',
+    '| Page | Description | Last updated |', '|------|-------------|--------------|',
+]
+
+
+def get_date(meta):
+    return str(meta.get("last_compiled") or "")
+
+
+def existing_descriptions():
+    """name(stem) -> description from the current index, as a fallback so descriptions aren't lost."""
+    out = {}
+    require_public_target(INDEX)
+    if not INDEX.exists():
+        return out
+    for line in V.read_text(INDEX).splitlines():
+        m = re.match(r"^\|\s*\[\[([^\]]+)\]\]\s*\|\s*(.*?)\s*\|", line)
+        if m:
+            out[V.nfc(m.group(1).split("/")[-1].strip())] = m.group(2).strip()
+    return out
+
+
+def main():
+    prev_desc = existing_descriptions()
+    rows, missing_desc = [], []
+    for p, meta, _ in V.iter_wiki_pages():
+        name = V.nfc(p.stem)
+        desc = str(meta.get("background") or "").strip() or prev_desc.get(name, "")
+        if not desc:
+            missing_desc.append(name)
+        rows.append((get_date(meta), name, desc))
+
+    # Sort: by date descending, then by name
+    rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
+
+    lines = list(HEADER)
+    for date, name, desc in rows:
+        lines.append(f"| [[7 - Wikipedia/{name}]] | {desc} | {date} |")
+
+    require_public_target(INDEX)
+    V.backup([INDEX], "index")
+    require_public_target(INDEX)
+    INDEX.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    print(f"✅ Index written: {V.rel(INDEX)} ({len(rows)} pages)")
+    if missing_desc:
+        print(f"⚠️  Pages with no background (empty description): {', '.join(missing_desc)}")
+
+
+if __name__ == "__main__":
+    main()

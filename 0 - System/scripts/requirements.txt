@@ -1,0 +1,3 @@
+# Python dependencies for the wiki scripts.
+PyYAML>=6.0
+youtube-transcript-api>=1.0

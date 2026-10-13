@@ -1,9 +1,10 @@
 ---
-subject: "[[Wiki Index]]"
+type: index
+subject:
 tags:
   - wiki
   - index
-private: false
+okf_version: "0.2"
 ---
 # Wiki Index
 
